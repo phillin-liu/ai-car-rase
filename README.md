@@ -298,11 +298,13 @@ python main.py --run --config runtime/session.json
 GUI「运行状态」页的 AI 面板、单局详情。
 
 ```bash
-python main.py --anticheat build   # 可选：编译 Rust 批量审计模块（需要 cargo）
+python main.py --anticheat build   # 可选：预编译 Rust 批量审计模块（需要 cargo）
 python main.py --anticheat check
 ```
 
 > Rust 模块 `anticheat/` 仅用于可选的赛后批量审计，实时反作弊不依赖它。
+> 它由 `cargo run` 直接从 `anticheat/src/main.rs` 现场编译运行，仓库里不含预编译
+> 二进制；没有安装 cargo 时自动回退到 Python 实现。
 
 ---
 
