@@ -355,7 +355,6 @@ ai-car-rase/
 │       ├── console.py          # 控制台主窗口
 │       ├── history_window.py   # 「历史汇总」弹窗
 │       └── config_window.py    # 兼容旧导入路径的 shim
-├── tests/                      # pytest：几何绕序 / 赛道 / 场景 / 模拟
 ├── anticheat/                  # Rust 批量反作弊校验器 (ac-validate)
 │   ├── Cargo.toml
 │   └── src/main.rs
