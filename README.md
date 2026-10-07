@@ -75,7 +75,7 @@ python main.py
 python main.py --shell
 ```
 
-在终端进入交互式文本 shell（适合服务器 / 无图形环境），支持 `run` / `set` /
+在终端进入交互式文本 shell，支持 `run` / `set` /
 `show` / `export-report` / `anticheat` 等命令，输入 `help` 查看。
 
 ### 命令行 / 无窗口
@@ -357,7 +357,6 @@ ai-car-rase/
 │       ├── console.py          # 控制台主窗口
 │       ├── history_window.py   # 「历史汇总」弹窗
 │       └── config_window.py    # 兼容旧导入路径的 shim
-├── tests/                      # pytest：几何绕序 / 赛道 / 场景 / 模拟
 ├── anticheat/                  # Rust 批量反作弊校验器 (ac-validate)
 │   ├── Cargo.toml
 │   └── src/main.rs
@@ -378,4 +377,3 @@ ai-car-rase/
 - 3D 窗口默认申请 4x MSAA 与 24 位深度缓冲；驱动不支持时自动回退，也可用
   `--no-msaa` 关闭抗锯齿。
 - 若显卡不支持 OpenGL 3.3，请更新驱动或改用无窗口模式跑分析。
-- 自测（无需显卡）：`python -m pytest tests/`。
