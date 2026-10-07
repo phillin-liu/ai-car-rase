@@ -1,0 +1,62 @@
+# Pinned to the versions actually installed in .venv
+# (Python 3.8.10, generated from `pip freeze`).
+#
+# Install with:  pip install -r requirements.txt
+
+# --- Core -------------------------------------------------------------------
+numpy==1.24.4
+
+# --- Rendering + window -----------------------------------------------------
+pygame==2.6.1
+PyOpenGL==3.1.10
+
+# --- Config window (GUI) ----------------------------------------------------
+PyQt5==5.15.11
+PyQt5-Qt5==5.15.2
+PyQt5_sip==12.15.0
+
+# --- PDF training report (charts + page images) -----------------------------
+Pillow==10.4.0
+
+# --- Vision model clients ---------------------------------------------------
+# `openai` covers OpenAI *and* every OpenAI-compatible backend (Ollama,
+# DeepSeek, 智谱, 通义千问, Kimi, 豆包, 硅基流动, MiniMax, Yi, 自建 vLLM ...),
+# so no per-vendor SDK is ever needed. `anthropic` is the only separate
+# protocol.
+openai==2.2.0
+anthropic==0.72.0
+
+# --- HTTP (model scan fallback / utilities) ---------------------------------
+requests==2.32.4
+
+# --- Transitive dependencies (installed automatically by the above) ---------
+annotated-types==0.7.0
+anyio==4.5.2
+certifi==2026.7.22
+charset-normalizer==3.5.2
+colorama==0.4.6
+distro==1.9.0
+docstring_parser==0.18.0
+exceptiongroup==1.3.1
+h11==0.16.0
+httpcore==1.0.9
+httpx==0.28.1
+idna==3.15
+jiter==0.9.1
+pydantic==2.10.6
+pydantic_core==2.27.2
+sniffio==1.3.1
+tqdm==4.70.1
+typing_extensions==4.13.2
+urllib3==2.2.3
+
+# --- Optional / not installed in .venv --------------------------------------
+# scipy is an optional accelerator (KD-tree track lookup, vision flood-fill);
+# the code has pure-Python fallbacks, so it is intentionally left out here.
+# scipy>=1.10
+#
+# Load an imported detector (.pt/.pth/.onnx) for the companion detector that
+# reads each frame. The built-in colour detector is used when this is not
+# installed, which is the normal case. There is no UI for it; set
+# `vision_weights` in config/settings.json by hand if you want it.
+# ultralytics>=8.0

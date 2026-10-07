@@ -1,0 +1,90 @@
+# ===========================================================================
+#  ai-car-rase — .gitignore
+# ===========================================================================
+
+# --- Python bytecode / caches ----------------------------------------------
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*$py.class
+*.orig
+tests/
+
+# --- Virtual environments ---------------------------------------------------
+.venv/
+venv/
+env/
+ENV/
+.virtualenv/
+.python-version
+
+# --- Packaging / build output ----------------------------------------------
+build/
+dist/
+*.egg-info/
+*.egg
+.eggs/
+pip-wheel-metadata/
+# Nuitka
+*.build/
+*.dist/
+*.onefile-build/
+# PyInstaller
+*.spec
+# Rust (anticheat)
+anticheat/target/
+
+# --- Test / type-checker caches --------------------------------------------
+.pytest_cache/
+.pytest_cache*
+.mypy_cache/
+.pytype/
+.ruff_cache/
+.tox/
+.nox/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+*.cover
+
+# --- Editors / OS ----------------------------------------------------------
+.idea/
+.vscode/
+*.iml
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# --- Secrets / local config -------------------------------------------------
+.env
+.env.*
+config/keys.json
+config/settings.json
+
+# --- Runtime / generated data (kept next to the app, never committed) -------
+runtime/
+projects/
+export/
+logs/
+*.tmp
+*.bak
+
+# --- Generated reports / renders -------------------------------------------
+*.pdf
+*.log
+
+# --- Ad-hoc debug / tuning scripts and screenshots --------------------------
+_test_*.py
+_debug*.py
+_tune*.py
+_obsdbg*.py
+_prof.py
+_gltest.py
+_shot*.png
+_ui_*.png
+_pdf_page*.png
