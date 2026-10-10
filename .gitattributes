@@ -1,0 +1,72 @@
+# ===========================================================================
+#  ai-car-rase — .gitattributes
+# ===========================================================================
+
+# --- Default: normalize line endings, auto-detect text ----------------------
+* text=auto eol=lf
+
+# --- Explicit text types (LF in repo and working tree) ----------------------
+*.py        text eol=lf
+*.pyi       text eol=lf
+*.rs        text eol=lf
+*.toml      text eol=lf
+*.lock      text eol=lf
+*.txt       text eol=lf
+*.md        text eol=lf
+*.json      text eol=lf
+*.yml       text eol=lf
+*.yaml      text eol=lf
+*.cfg       text eol=lf
+*.ini       text eol=lf
+*.sh        text eol=lf
+
+# --- Windows-only scripts (keep CRLF on checkout) ---------------------------
+*.bat       text eol=crlf
+*.cmd       text eol=crlf
+*.ps1       text eol=crlf
+
+# --- Binary: never touch or diff -------------------------------------------
+*.png       binary
+*.jpg       binary
+*.jpeg      binary
+*.gif       binary
+*.ico       binary
+*.bmp       binary
+*.webp      binary
+*.pdf       binary
+*.zip       binary
+*.tar       binary
+*.gz        binary
+*.7z        binary
+*.exe       binary
+*.dll       binary
+*.so        binary
+*.dylib     binary
+*.pyd       binary
+*.pyc       binary
+*.pt        binary
+*.pth       binary
+*.onnx      binary
+*.bin       binary
+*.npy       binary
+*.npz       binary
+*.db        binary
+*.sqlite    binary
+*.sqlite3   binary
+
+# --- Diff drivers -----------------------------------------------------------
+*.py        diff=python
+*.rs        diff=rust
+Cargo.lock  diff=cargo-lock
+
+# --- Merge strategy ---------------------------------------------------------
+# Keep both sides of lock files; at worst the lockfile just needs a rebuild.
+*.lock      merge=union
+
+# --- Linguist / language statistics -----------------------------------------
+# Vendored / generated code should not skew repo language stats.
+anticheat/target/**       linguist-vendored
+**/__pycache__/**         linguist-generated
+**/*.pyc                  linguist-generated
+# Exclude lock files and docs from language detection.
+Cargo.lock                linguist-generated

@@ -34,6 +34,20 @@ pip-wheel-metadata/
 *.spec
 # Rust (anticheat)
 anticheat/target/
+# Arch Linux packaging: the config folder (arch/aur/) is tracked, the
+# compiled package, makepkg scratch dirs and the generated .SRCINFO are not.
+*.pkg.tar
+*.pkg.tar.*
+arch/aur/pkg/
+arch/aur/src/
+arch/aur/*.tar.gz
+arch/aur/.SRCINFO
+# Nuitka packaging: compiled dist + generated makepkg source are not tracked.
+arch/nuitka/pkg/
+arch/nuitka/src/
+arch/nuitka/*.tar.zst
+arch/nuitka/*.tar.gz
+arch/nuitka/.SRCINFO
 
 # --- Test / type-checker caches --------------------------------------------
 .pytest_cache/

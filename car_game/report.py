@@ -23,6 +23,8 @@ from datetime import datetime
 
 from PIL import Image, ImageDraw, ImageFont
 
+from .fonts import find_bold_font_file, find_font_file
+
 # A4 at 150 dpi
 PW, PH = 1240, 1754
 MARGIN = 84
@@ -57,11 +59,23 @@ _FONT_CANDIDATES = [
 ]
 
 
-def _font_path() -> str | None:
+def _font_path(bold: bool = False):
+    """Resolve a CJK font for the PDF, whatever the platform.
+
+    The hard-coded candidates are kept for the report's original layout,
+    but the shared resolver adds the common Linux font trees and, as a last
+    resort, asks fontconfig (``fc-list :lang=zh``) -- without it a Chinese
+    report rendered as empty boxes on a distro whose Noto CJK sits in a
+    different directory.
+    """
+    if bold:
+        path = find_bold_font_file()
+        if path:
+            return path
     for p in _FONT_CANDIDATES:
         if os.path.exists(p):
             return p
-    return None
+    return find_font_file()
 
 
 _FONT_CACHE: dict = {}
@@ -71,7 +85,7 @@ def font(size: int, bold: bool = False):
     key = (size, bold)
     if key in _FONT_CACHE:
         return _FONT_CACHE[key]
-    path = _font_path()
+    path = _font_path(bold)
     f = None
     if path:
         for idx in ((1,) if bold and path.endswith(".ttc") else (0,)) + (0,):

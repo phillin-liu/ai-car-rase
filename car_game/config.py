@@ -12,17 +12,27 @@ from .providers import (DEFAULT_MODELS, PROVIDER_LABELS, PROVIDERS,
                         ProviderSpec, get as get_provider, is_known,
                         normalize_provider, provider_ids)
 
-if getattr(sys, "frozen", False):
-    # Frozen build (PyInstaller): keep config/, projects/ and runtime/ next to
-    # the executable so settings, API keys and match history survive restarts.
-    # ``sys._MEIPASS`` is a throw-away temp dir in one-file builds, so it must
-    # never be used as the data root.
+if getattr(sys, "frozen", False) or hasattr(sys, "__compiled__"):
+    # Frozen build (Nuitka standalone / PyInstaller): keep config/, projects/
+    # and runtime/ next to the executable so settings, API keys and match
+    # history survive restarts.  ``sys._MEIPASS`` is a throw-away temp dir in
+    # one-file builds, so it must never be used as the data root.
     ROOT = os.path.dirname(os.path.abspath(sys.executable))
 else:
     ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CONFIG_DIR = os.path.join(ROOT, "config")
-PROJECTS_DIR = os.path.join(ROOT, "projects")
-RUNTIME_DIR = os.path.join(ROOT, "runtime")
+
+# ``ROOT`` is where the *code* lives (main.py, car_game/, anticheat/); the
+# writable data (settings, API keys, match history) defaults to the same
+# place, which is what a portable / frozen build wants.  A system-wide install
+# (e.g. an Arch package under /usr/lib) is read-only, so allow the launcher to
+# redirect the data root with ``AI_CAR_RASE_HOME``.  Keep the two roots
+# separate: console.py spawns ``main.py`` from ROOT and anticheat.py looks for
+# its Rust binary under ROOT, so those must keep following the code tree.
+DATA_ROOT = os.path.abspath(os.path.expanduser(
+    os.environ.get("AI_CAR_RASE_HOME") or ROOT))
+CONFIG_DIR = os.path.join(DATA_ROOT, "config")
+PROJECTS_DIR = os.path.join(DATA_ROOT, "projects")
+RUNTIME_DIR = os.path.join(DATA_ROOT, "runtime")
 KEYS_FILE = os.path.join(CONFIG_DIR, "keys.json")
 
 
@@ -225,6 +235,18 @@ def apply_saved_keys(cfg: GameConfig) -> GameConfig:
 def ensure_dirs() -> None:
     for d in (CONFIG_DIR, PROJECTS_DIR, RUNTIME_DIR):
         os.makedirs(d, exist_ok=True)
+
+
+def external_env() -> dict:
+    """Environment for launching unrelated desktop apps (``xdg-open`` ...).
+
+    A Nuitka bundle exports ``LD_LIBRARY_PATH`` pointing at its own frozen
+    Qt/glib so the game finds them.  A file manager inheriting that path can
+    pick up the bundled libraries and crash, so strip it for helpers.
+    """
+    env = dict(os.environ)
+    env.pop("LD_LIBRARY_PATH", None)
+    return env
 
 
 def default_settings_path() -> str:

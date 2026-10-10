@@ -15,11 +15,11 @@ Design rules:
 from __future__ import annotations
 
 import math
-import os
 from collections import OrderedDict
 
 import pygame
 
+from ..fonts import CJK_FAMILIES, find_font_file
 from ..items import ITEM_DEFS
 
 # colours ---------------------------------------------------------------
@@ -32,6 +32,10 @@ GOOD = (140, 232, 170)
 BAD = (250, 150, 150)
 
 MAX_TEXT_CACHE = 640
+
+# resolved once per process by :func:`_cjk_font_path`
+_FONT_PATH = ""
+_FONT_RESOLVED = False
 
 
 def countdown_label(countdown: float) -> str:
@@ -49,22 +53,36 @@ def countdown_label(countdown: float) -> str:
     return ""
 
 
-def _font(size: int):
-    for name in ("microsoftyahei", "microsoftyaheiui", "simhei", "arial"):
-        try:
-            path = pygame.font.match_font(name)
-            if path:
-                return pygame.font.Font(path, size)
-        except Exception:
-            continue
-    windir = os.environ.get("WINDIR", r"C:\Windows")
-    for fn in ("msyh.ttc", "msyhbd.ttc", "simhei.ttf", "simsun.ttc"):
-        path = os.path.join(windir, "Fonts", fn)
-        if os.path.exists(path):
+def _cjk_font_path():
+    """Locate a CJK-capable font once, then remember it.
+
+    ``pygame.font.match_font`` uses fontconfig on Linux and the registry on
+    Windows, so an installed CJK face is found by name even when it lives
+    somewhere our candidate list does not know; :func:`find_font_file` is the
+    explicit-path / ``fc-list`` fallback (see ``car_game/fonts.py``).
+    """
+    global _FONT_PATH, _FONT_RESOLVED
+    if not _FONT_RESOLVED:
+        _FONT_RESOLVED = True
+        for name in CJK_FAMILIES:
             try:
-                return pygame.font.Font(path, size)
+                _FONT_PATH = pygame.font.match_font(name)
             except Exception:
-                pass
+                _FONT_PATH = None
+            if _FONT_PATH:
+                break
+        if not _FONT_PATH:
+            _FONT_PATH = find_font_file() or ""
+    return _FONT_PATH or None
+
+
+def _font(size: int):
+    path = _cjk_font_path()
+    if path:
+        try:
+            return pygame.font.Font(path, size)
+        except Exception:
+            pass
     return pygame.font.Font(None, size)
 
 

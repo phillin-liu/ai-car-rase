@@ -86,7 +86,7 @@ def apply_overrides(cfg, args) -> None:
 
 def _handle_export_commands(args) -> bool:
     """Run one-shot export/anti-cheat commands and return True if handled."""
-    from car_game.config import ensure_dirs
+    from car_game.config import RUNTIME_DIR, ensure_dirs
     from car_game.store import MatchStore
     ensure_dirs()
     store = MatchStore()
@@ -95,7 +95,7 @@ def _handle_export_commands(args) -> bool:
         if store.count() <= 0:
             print('[!] 当前会话还没有对局数据，无法导出训练报告')
             return True
-        out = os.path.join('runtime', 'training_report.pdf')
+        out = os.path.join(RUNTIME_DIR, 'training_report.pdf')
         try:
             store.export_report(out)
         except ImportError:

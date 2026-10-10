@@ -1,0 +1,105 @@
+# Maintainer: Phillin-liu <phillin.liu@example.com>
+#
+# Arch Linux package for AI Car Race.
+#
+# The app is pure Python, so this is a source package: it ships the code and
+# depends on the distro's python-* packages instead of freezing a private
+# interpreter.  Build it with ./build.sh (which creates the source tarball
+# from the working tree) or, once a release tag exists, by pointing `source`
+# at the GitHub archive.
+#
+# Build output (pkg/, src/, *.pkg.tar.*, the generated source tarball and the
+# generated .SRCINFO) is intentionally git-ignored; only this config folder is
+# tracked.  See ../../.gitignore.
+
+pkgname=ai-car-rase
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="3D 双人赛车：双方各由一个视觉大模型驾驶（Python + OpenGL）"
+arch=('any')
+url="https://github.com/phillin-liu/ai-car-rase"
+license=('MIT')
+depends=(
+  'python'
+  'python-numpy'
+  'python-pygame'
+  'python-opengl'
+  'python-pyqt5'
+  'python-pillow'
+  'python-requests'
+  'python-openai'
+)
+optdepends=(
+  'python-scipy: 加速赛道查找与视觉填充（可选，缺失时用纯 Python 回退）'
+  'python-anthropic: 使用 Anthropic 提供方（不在官方仓库时需自行安装）'
+  'cargo: 编译可选的 Rust 批量反作弊模块（python main.py --anticheat build）'
+  'ollama: 本机视觉模型，无需 API 密钥即可开赛'
+)
+provides=('ai-car-rase')
+conflicts=('ai-car-rase-git' 'ai-car-rase-bin')
+# Pure Python: no stripping, no separate -debug package.
+options=('!strip' '!debug')
+
+# Local build: ./build.sh drops ai-car-rase-$pkgver.tar.gz next to this file
+# and makepkg picks it up.  For an AUR/AUR-style publish, replace this with a
+# remote source, e.g.
+#   source=("$pkgname-$pkgver.tar.gz::$url/archive/v$pkgver.tar.gz")
+source=("$pkgname-$pkgver.tar.gz")
+sha256sums=('SKIP')
+
+package() {
+    local _libdir="$pkgdir/usr/lib/$pkgname"
+
+    # --- application code ------------------------------------------------
+    install -d "$_libdir"
+    cp -a "$srcdir/$pkgname-$pkgver/." "$_libdir/"
+
+    # Keep the installed tree clean: no VCS, caches, runtime data or the
+    # packaging config itself.
+    rm -rf \
+        "$_libdir/.git" \
+        "$_libdir/.gitattributes" \
+        "$_libdir/.gitignore" \
+        "$_libdir/arch" \
+        "$_libdir/config" \
+        "$_libdir/projects" \
+        "$_libdir/runtime"
+    find "$_libdir" -type d -name '__pycache__' -prune -exec rm -rf {} +
+    find "$_libdir" -type f -name '*.py[co]' -delete
+
+    # --- launcher --------------------------------------------------------
+    # A system-wide install is read-only, so redirect the writable data root
+    # (settings.json / keys.json / runtime / projects) into the user's XDG
+    # data directory.  AI_CAR_RASE_HOME is honoured by car_game.config.
+    install -Dm755 /dev/stdin "$pkgdir/usr/bin/$pkgname" <<EOF
+#!/bin/sh
+# Launcher for $pkgname ($pkgver-$pkgrel)
+: "\${AI_CAR_RASE_HOME:=\${XDG_DATA_HOME:-\$HOME/.local/share}/$pkgname}"
+export AI_CAR_RASE_HOME
+exec /usr/bin/python3 /usr/lib/$pkgname/main.py "\$@"
+EOF
+
+    # --- desktop entry ---------------------------------------------------
+    install -Dm644 /dev/stdin \
+        "$pkgdir/usr/share/applications/$pkgname.desktop" <<EOF
+[Desktop Entry]
+Type=Application
+Name=AI Car Race
+Name[zh_CN]=AI 赛车
+GenericName=AI Racing Game
+Comment=Dual AI vision-model racing (Python + OpenGL)
+Comment[zh_CN]=双方各由一个视觉大模型驾驶的 3D 双人赛车
+Exec=$pkgname
+Icon=applications-games
+Terminal=false
+Categories=Game;Simulation;
+Keywords=game;racing;ai;opengl;
+StartupNotify=true
+EOF
+
+    # --- docs ------------------------------------------------------------
+    install -Dm644 "$srcdir/$pkgname-$pkgver/README.md" \
+        "$pkgdir/usr/share/doc/$pkgname/README.md"
+    install -Dm644 "$srcdir/$pkgname-$pkgver/License" \
+        "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}

@@ -11,8 +11,8 @@ import os
 import shlex
 import sys
 
-from .config import (DEFAULT_MODELS, GameConfig, ensure_dirs, load_settings,
-                     save_settings)
+from .config import (DEFAULT_MODELS, RUNTIME_DIR, GameConfig, ensure_dirs,
+                     load_settings, save_settings)
 from .providers import is_known, normalize_provider, provider_ids
 from .runner import run_headless, run_session
 from .store import MatchStore
@@ -111,8 +111,8 @@ def _cmd_export_report() -> None:
     if store.count() <= 0:
         print("[!] 当前会话还没有对局数据，无法导出训练报告")
         return
-    out = os.path.join("runtime", "training_report.pdf")
-    os.makedirs("runtime", exist_ok=True)
+    out = os.path.join(RUNTIME_DIR, "training_report.pdf")
+    os.makedirs(RUNTIME_DIR, exist_ok=True)
     try:
         store.export_report(out)
     except ImportError:

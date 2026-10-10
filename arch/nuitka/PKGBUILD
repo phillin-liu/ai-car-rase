@@ -1,0 +1,87 @@
+# Maintainer: Phillin-liu <phillin.liu@example.com>
+#
+# Nuitka-compiled Arch package for AI Car Race.
+#
+# Unlike ../aur/PKGBUILD (which ships the Python sources and depends on the
+# distro's python-numpy / python-pygame / python-pyqt5 ...), this packages a
+# *frozen* Nuitka standalone tree: its own Python interpreter, every
+# extension module and every C library it can carry are inside
+# /usr/lib/ai-car-rase.  The target machine therefore installs **no** Python
+# or Qt/SDL packages at all.
+#
+# Build it with ./build.sh, which runs Nuitka, bundles the remaining native
+# libraries into <dist>/lib/ and drops the ${pkgname}-${pkgver}-nuitka.tar.zst
+# source next to this file; then run `makepkg` here.
+#
+# The only things still taken from the host are the things that *cannot* be
+# frozen without breaking hardware support:
+#   * the C library / dynamic loader (glibc),
+#   * the OpenGL / GPU driver stack (libGL, libEGL, libgbm, libdrm,
+#     vendor drivers) -- Mesa/NVIDIA must match the machine's hardware.
+
+pkgname=ai-car-rase
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="3D 双人赛车：双方各由一个视觉大模型驾驶（Nuitka 免依赖自包含版）"
+arch=('x86_64')
+url="https://github.com/phillin-liu/ai-car-rase"
+license=('MIT')
+# Intentionally empty: the bundle carries Python and every python-* module,
+# Qt5, SDL2, X11 and the rest.  Only glibc + the GPU driver come from the OS
+# (and both are present on any machine able to run a 3D game).
+depends=()
+optdepends=(
+  'ollama: 本机视觉模型，无需 API 密钥即可开赛'
+  'noto-fonts-cjk: 游戏中文字体 (HUD / PDF 训练报告)'
+)
+provides=('ai-car-rase')
+conflicts=('ai-car-rase-git' 'ai-car-rase-bin')
+options=('!strip' '!debug')
+source=("$pkgname-$pkgver-nuitka.tar.zst")
+sha256sums=('SKIP')
+
+package() {
+    local _libdir="$pkgdir/usr/lib/$pkgname"
+
+    # --- frozen application tree ----------------------------------------
+    install -d "$_libdir"
+    cp -a "$srcdir/ai-car-rase/." "$_libdir/"
+
+    # --- launcher --------------------------------------------------------
+    # Point LD_LIBRARY_PATH at the bundled native libraries (Qt5, SDL2, X11,
+    # ...).  AI_CAR_RASE_HOME keeps settings/keys/history in the user's XDG
+    # data dir, because /usr/lib is read-only.
+    install -Dm755 /dev/stdin "$pkgdir/usr/bin/$pkgname" <<EOF
+#!/bin/sh
+# Launcher for $pkgname ($pkgver-$pkgrel) -- Nuitka self-contained build
+: "\${AI_CAR_RASE_HOME:=\${XDG_DATA_HOME:-\$HOME/.local/share}/ai-car-rase}"
+export AI_CAR_RASE_HOME
+_libdir="/usr/lib/$pkgname"
+export LD_LIBRARY_PATH="\$_libdir\${LD_LIBRARY_PATH:+:\$LD_LIBRARY_PATH}"
+exec "\$_libdir/ai-car-rase" "\$@"
+EOF
+
+    # --- desktop entry ---------------------------------------------------
+    install -Dm644 /dev/stdin \
+        "$pkgdir/usr/share/applications/$pkgname.desktop" <<EOF
+[Desktop Entry]
+Type=Application
+Name=AI Car Race
+Name[zh_CN]=AI 赛车
+GenericName=AI Racing Game
+Comment=Dual AI vision-model racing (Nuitka bundle)
+Comment[zh_CN]=双方各由一个视觉大模型驾驶的 3D 双人赛车（Nuitka 免依赖版）
+Exec=$pkgname
+Icon=applications-games
+Terminal=false
+Categories=Game;Simulation;
+Keywords=game;racing;ai;opengl;
+StartupNotify=true
+EOF
+
+    # --- docs ------------------------------------------------------------
+    install -Dm644 "$startdir/../README.md" \
+        "$pkgdir/usr/share/doc/$pkgname/README.md" 2>/dev/null || true
+    install -Dm644 "$startdir/../License" \
+        "$pkgdir/usr/share/licenses/$pkgname/LICENSE" 2>/dev/null || true
+}

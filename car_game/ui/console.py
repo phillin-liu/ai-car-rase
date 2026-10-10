@@ -25,10 +25,10 @@ from PyQt5.QtWidgets import (
     QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget,
 )
 
-from ..config import (DEFAULT_MODELS, PROVIDER_LABELS, PROVIDERS, ROOT,
-                      RUNTIME_DIR, GameConfig, MatchConfig, ModelConfig,
-                      ensure_dirs, load_keys, load_settings, save_keys,
-                      save_settings)
+from ..config import (DATA_ROOT, DEFAULT_MODELS, PROVIDER_LABELS, PROVIDERS,
+                      ROOT, RUNTIME_DIR, GameConfig, MatchConfig, ModelConfig,
+                      ensure_dirs, external_env, load_keys, load_settings,
+                      save_keys, save_settings)
 from ..items import ITEM_DEFS
 from ..providers import get as get_provider, normalize_provider
 from .i18n import t
@@ -45,6 +45,9 @@ from .widgets import (BarChart, ComparisonTable, MetricChip, SparkChart,
 
 SESSION_FILE = os.path.join(RUNTIME_DIR, "session.json")
 MAIN = os.path.join(ROOT, "main.py")
+# Nuitka / PyInstaller standalone: the game is a second run of this same
+# executable, not ``python main.py`` -- there is no main.py on disk any more.
+FROZEN = getattr(sys, "frozen", False) or hasattr(sys, "__compiled__")
 
 SIZE_PRESETS = ["960x540", "1280x720", "1600x900", "1920x1080"]
 
@@ -856,10 +859,15 @@ class ConfigWindow(QMainWindow):
         mark_gui_present()
 
         flags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0) if os.name == "nt" else 0
+        if FROZEN:
+            argv = [sys.executable, "--run", "--config", SESSION_FILE]
+            cwd = DATA_ROOT
+        else:
+            argv = [sys.executable, MAIN, "--run", "--config", SESSION_FILE]
+            cwd = ROOT
         try:
             self.proc = subprocess.Popen(
-                [sys.executable, MAIN, "--run", "--config", SESSION_FILE],
-                cwd=ROOT, creationflags=flags)
+                argv, cwd=cwd, creationflags=flags)
         except Exception as exc:  # noqa: BLE001
             clear_gui_present()
             QMessageBox.critical(self, t("启动失败"), str(exc))
@@ -1291,9 +1299,9 @@ class ConfigWindow(QMainWindow):
             if os.name == "nt":
                 os.startfile(path)  # type: ignore[attr-defined]
             elif sys.platform == "darwin":
-                subprocess.Popen(["open", path])
+                subprocess.Popen(["open", path], env=external_env())
             else:
-                subprocess.Popen(["xdg-open", path])
+                subprocess.Popen(["xdg-open", path], env=external_env())
         except Exception:
             QMessageBox.information(self, t("数据路径"), path)
 

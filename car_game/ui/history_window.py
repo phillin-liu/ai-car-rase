@@ -19,6 +19,7 @@ from PyQt5.QtWidgets import (QAbstractItemView, QDialog, QFileDialog,
                              QPushButton, QSplitter, QTableWidget,
                              QTableWidgetItem, QVBoxLayout)
 
+from ..config import external_env
 from .i18n import t
 from .theme import SPACE
 from .widgets import (BarChart, ComparisonTable, advice_list, card,
@@ -326,8 +327,8 @@ class HistoryDialog(QDialog):
             if os.name == "nt":
                 os.startfile(path)  # type: ignore[attr-defined]
             elif sys.platform == "darwin":
-                subprocess.Popen(["open", path])
+                subprocess.Popen(["open", path], env=external_env())
             else:
-                subprocess.Popen(["xdg-open", path])
+                subprocess.Popen(["xdg-open", path], env=external_env())
         except Exception:
             QMessageBox.information(self, t("数据路径"), path)

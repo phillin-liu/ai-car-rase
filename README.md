@@ -56,6 +56,19 @@ pip install -r requirements.txt
 > 配置窗口使用 **PyQt5**。如果不想或无法安装 PyQt5，可以用
 > `python main.py --shell` 进入文本指令模式，或用 `--run` 直接跑对局。
 
+### Linux 说明
+
+代码本身跨平台，Linux 下额外注意两点：
+
+- **中文字体**：游戏内 HUD 与 PDF 训练报告需要一套中文字体。程序会按
+  fontconfig（`fc-list :lang=zh`）和各发行版的常见路径自动查找；若一个都没找到，
+  请安装一套 CJK 字体，例如 Debian/Ubuntu `sudo apt install fonts-noto-cjk`、
+  Arch `sudo pacman -S noto-fonts-cjk`、Fedora `sudo dnf install google-noto-sans-cjk-fonts`，
+  或 `wqy-microhei` / `wqy-zenhei`。缺少字体时中文会显示为方框。
+- **桌面环境**：图形配置窗口 / 3D 窗口需要 X11 或 Wayland 会话；纯服务器请用
+  `--shell` 或 `--run --headless`。Rust 反作弊二进制在 Linux 下为不带 `.exe` 的
+  `anticheat/target/release/ac-validate`，`python main.py --anticheat build` 会自动编译。
+
 ---
 
 ## 3. 快速开始
@@ -315,6 +328,7 @@ ai-car-rase/
 ├── requirements.txt
 ├── car_game/
 │   ├── config.py               # 配置 dataclass + 持久化 + 密钥
+│   ├── fonts.py                # 跨平台中文字体查找（HUD / PDF 共用）
 │   ├── providers.py            # 视觉模型 provider 注册表
 │   ├── mathutil.py             # 矩阵 / 向量、相机矩阵
 │   ├── core_types.py           # Action / Observation
@@ -377,3 +391,46 @@ ai-car-rase/
   `--no-msaa` 关闭抗锯齿。
 - 若显卡不支持 OpenGL 3.3，请更新驱动或改用无窗口模式跑分析。
 - 自测（无需显卡）：`python -m pytest tests/`。
+
+---
+
+## 11. 打包发布
+
+仓库里有两套 Arch 打包配置，产物都是 `.pkg.tar.zst`：
+
+### Nuitka 免依赖自包含包（推荐）
+
+`arch/nuitka/` 用 [Nuitka](https://nuitka.net/) 把整个程序编译成
+**standalone 发行树**：自带 Python 解释器、全部 `python-*` 模块（numpy /
+pygame / PyOpenGL / PyQt5 / Pillow / openai …）、以及 Qt5 / SDL2 / X11
+等原生库。安装机 `pacman -U` 时**不会**拉取任何 python 依赖。
+
+```bash
+cd arch/nuitka
+./build.sh          # Nuitka 编译 + 打包原生库 + 生成 makepkg 源 tar 包
+makepkg -f          # 产出 ai-car-rase-0.1.0-1-x86_64.pkg.tar.zst
+sudo pacman -U ai-car-rase-0.1.0-1-x86_64.pkg.tar.zst
+```
+
+`build.sh` 会：
+
+1. `nuitka --standalone --enable-plugin=pyqt5` 编译 `main.py`；
+2. 运行 `bundle_libs.py`，把 `ldd` 闭包里缺失的 Qt5 / SDL2 / X11 / ICU /
+   OpenBLAS 等约 120 个原生库复制进 `<dist>/lib/`；
+3. 生成 `ai-car-rase-<ver>-nuitka.tar.zst` 供 `PKGBUILD` 打包。
+
+启动器 `/usr/bin/ai-car-rase` 把 `LD_LIBRARY_PATH` 指向 `/usr/lib/ai-car-rase/lib`，
+用户数据仍写到 `~/.local/share/ai-car-rase/`（可用 `AI_CAR_RASE_HOME` 覆盖）。
+
+> 只有两样东西刻意不打包、仍由系统提供：**glibc / 动态加载器**，以及
+> **OpenGL-GPU 驱动栈**（libGL、libEGL、libgbm、libdrm 与厂商驱动）——
+> 后者必须与机器硬件匹配，冻结 Mesa 会破坏 NVIDIA/AMD 驱动。因此
+> `PKGBUILD` 里的 `depends` 为空，任何能跑 3D 游戏的 Arch 系统都能直接安装。
+>
+> 已用「只有 glibc + 本包」的最小 chroot 验证：无窗口整局对局可正常跑完。
+
+### 源码包（依赖发行版 python 包）
+
+`arch/aur/` 是纯 Python 源码包，依赖 `python-numpy`、`python-pygame`、
+`python-opengl`、`python-pyqt5` 等；体积小，适合已经装好 Python 生态的系统。
+`cd arch/aur && ./build.sh -i` 编译并安装。
