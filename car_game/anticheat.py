@@ -7,14 +7,17 @@ values).  This module validates the *raw* driver output and the resulting
 telemetry and records violations.
 
 A Rust implementation of the same checks lives in ``anticheat/`` so the
-heavy batch validation can run out-of-process.  If the Rust binary is not
-compiled we transparently fall back to the pure-Python validator below.
+heavy batch validation can run out-of-process.  It is run straight from
+source through ``cargo run`` -- there is no prebuilt binary to ship, so a
+fresh clone works as long as the Rust toolchain is installed.  When cargo or
+the source is missing we fall back to the pure-Python validator below.
 """
 from __future__ import annotations
 
 import json
 import math
 import os
+import shutil
 import subprocess
 import tempfile
 from dataclasses import dataclass, field
@@ -24,9 +27,8 @@ from .core_types import Action
 from .items import ITEM_MAP
 
 RUST_DIR = os.path.join(ROOT, "anticheat")
-RUST_BIN = os.path.join(RUST_DIR, "target", "release", "ac-validate")
-if os.name == "nt":
-    RUST_BIN += ".exe"
+RUST_SRC = os.path.join(RUST_DIR, "src", "main.rs")
+RUST_MANIFEST = os.path.join(RUST_DIR, "Cargo.toml")
 
 
 @dataclass
@@ -211,14 +213,27 @@ class AntiCheat:
 
 
 # ---------------------------------------------------------------------------
-# Optional Rust-backed batch validator
+# Optional Rust-backed batch validator (compiled and run from source)
+#
+# ``cargo run`` reuses the build in ``anticheat/target/`` when the source has
+# not changed, so repeat calls only pay cargo's startup.  The first call on a
+# cold clone compiles serde + serde_json once, hence the generous timeout.
 # ---------------------------------------------------------------------------
-def rust_binary_available() -> bool:
-    return os.path.exists(RUST_BIN)
+def cargo_available() -> bool:
+    return shutil.which("cargo") is not None
+
+
+def rust_source_available() -> bool:
+    """True when the Rust validator can be compiled and run from source."""
+    return os.path.exists(RUST_SRC) and cargo_available()
 
 
 def build_rust() -> tuple[bool, str]:
-    """Try to compile the Rust anti-cheat binary (requires cargo)."""
+    """Pre-compile the Rust validator (requires cargo).
+
+    Optional -- ``validate_results_rust`` compiles on demand anyway; this just
+    keeps the first real verification from paying for the build.
+    """
     if not os.path.isdir(RUST_DIR):
         return False, f"找不到 Rust 源码目录 {RUST_DIR}"
     try:
@@ -227,7 +242,7 @@ def build_rust() -> tuple[bool, str]:
             cwd=RUST_DIR, capture_output=True, text=True, timeout=600)
         if proc.returncode != 0:
             return False, proc.stderr.strip()[-800:]
-        return True, RUST_BIN
+        return True, os.path.join(RUST_DIR, "target", "release", "ac-validate")
     except FileNotFoundError:
         return False, "未安装 cargo / Rust 工具链"
     except Exception as exc:  # noqa: BLE001
@@ -235,11 +250,13 @@ def build_rust() -> tuple[bool, str]:
 
 
 def validate_results_rust(matches: list) -> dict:
-    """Validate a list of raw match result dicts with the Rust binary.
+    """Validate a list of raw match result dicts with the Rust source.
 
-    Falls back to the Python validator when the binary is unavailable.
+    The validator is compiled and executed by cargo on demand, so a fresh
+    checkout needs only the Rust toolchain -- nothing prebuilt.  Falls back to
+    the pure-Python validator when cargo or the source is unavailable.
     """
-    if not rust_binary_available():
+    if not rust_source_available():
         return validate_results_python(matches)
 
     payload = {"matches": _json_safe(matches)}
@@ -248,8 +265,11 @@ def validate_results_rust(matches: list) -> dict:
         json.dump(payload, fh, ensure_ascii=False)
         path = fh.name
     try:
-        proc = subprocess.run([RUST_BIN, path], capture_output=True, text=True,
-                              encoding="utf-8", errors="replace", timeout=300)
+        proc = subprocess.run(
+            ["cargo", "run", "--release", "--quiet",
+             "--manifest-path", RUST_MANIFEST, "--", path],
+            capture_output=True, text=True,
+            encoding="utf-8", errors="replace", timeout=600)
         if proc.returncode == 0:
             try:
                 return json.loads(proc.stdout)
@@ -303,11 +323,11 @@ def validate_results_python(matches: list) -> dict:
 def verify_matches(matches: list) -> dict:
     """Verify raw match result dicts, preferring the Rust engine.
 
-    When the Rust binary is available but fails at runtime we transparently
-    fall back to the pure-Python validator so verification never crashes a
-    caller.
+    When cargo is present but the Rust run fails (compile error, crash) we
+    transparently fall back to the pure-Python validator so verification never
+    crashes a caller.
     """
-    if rust_binary_available():
+    if rust_source_available():
         result = validate_results_rust(matches)
         if "error" not in result:
             result.setdefault("checked", len(matches))

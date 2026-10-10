@@ -108,9 +108,12 @@ def _handle_export_commands(args) -> bool:
         if args.anticheat == 'build':
             ok, msg = anticheat.build_rust()
             print(f'Rust 反作弊构建{"成功" if ok else "失败"}: {msg}')
+        elif not os.path.exists(anticheat.RUST_SRC):
+            print('Rust 反作弊源码缺失，将使用 Python 校验')
+        elif not anticheat.cargo_available():
+            print('未安装 cargo，将使用 Python 校验')
         else:
-            print(f'Rust 反作弊二进制: {"可用" if anticheat.rust_binary_available() else "未编译"}'
-                  '  (用 --anticheat build 编译)')
+            print('Rust 反作弊: 可用 (cargo run 从源码现场编译运行)')
         return True
     return False
 

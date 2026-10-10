@@ -126,10 +126,15 @@ def _cmd_anticheat(action: str) -> None:
     if action == "build":
         ok, msg = anticheat.build_rust()
         print(f"构建{'成功' if ok else '失败'}: {msg}")
+        return
+    print(f"Rust 源码: {anticheat.RUST_SRC}")
+    if not os.path.exists(anticheat.RUST_SRC):
+        print("状态: 找不到源码，将使用 Python 校验")
+    elif not anticheat.cargo_available():
+        print("状态: 未安装 cargo，将使用 Python 校验")
     else:
-        print(f"Rust 反作弊二进制: {'可用' if anticheat.rust_binary_available() else '未编译'}")
-        print(f"路径: {anticheat.RUST_BIN}")
-        print("运行 'anticheat build' 可编译（需要 cargo）。")
+        print("状态: 可用（cargo run 从源码现场编译运行）")
+        print("编译产物缓存在 anticheat/target/，首次运行较慢。")
 
 
 def run_cli(cfg: GameConfig) -> int:
