@@ -1,0 +1,70 @@
+# Maintainer: Phillin-liu <phillin.liu@example.com>
+#
+# Nuitka-compiled Arch package for AI Car Race.
+#
+# This packages a *frozen* Nuitka standalone tree: its own Python
+# interpreter, every extension module and every C library it can carry are
+# inside /usr/lib/ai-car-rase.  The target machine therefore installs **no**
+# Python or Qt/SDL packages at all -- see ../nuitka/build.sh
+#
+# Build it with ./build.sh, which compiles the tree (../nuitka/build.sh),
+# bundles the remaining native libraries and drops
+# ${pkgname}-${pkgver}-nuitka.tar.zst next to this file; then run `makepkg`
+# here.  The deb and rpm packages ship the very same tree.
+#
+# The only things still taken from the host are the things that *cannot* be
+# frozen without breaking hardware support:
+#   * the C library / dynamic loader (glibc),
+#   * the OpenGL / GPU driver stack (libGL, libEGL, libgbm, libdrm,
+#     vendor drivers) -- Mesa/NVIDIA must match the machine's hardware.
+
+pkgname=ai-car-rase
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="3D 双人赛车：双方各由一个视觉大模型驾驶"
+arch=('x86_64')
+url="https://github.com/phillin-liu/ai-car-rase"
+license=('MIT')
+# Only glibc and the GPU driver come from the OS: Python, every python-*
+# module, Qt5, SDL2 and X11 are inside the bundle.
+depends=('glibc')
+optdepends=(
+  'ollama: 本机视觉模型，无需 API 密钥即可开赛'
+  'noto-fonts-cjk: 游戏中文字体 (HUD / PDF 训练报告)'
+)
+provides=('ai-car-rase')
+conflicts=('ai-car-rase-git' 'ai-car-rase-bin')
+options=('!strip' '!debug')
+source=("$pkgname-$pkgver-nuitka.tar.zst")
+sha256sums=('SKIP')
+
+package() {
+    local _libdir="$pkgdir/usr/lib/$pkgname"
+
+    # --- frozen application tree ----------------------------------------
+    install -d "$_libdir"
+    cp -a "$srcdir/ai-car-rase/." "$_libdir/"
+
+    # --- launcher --------------------------------------------------------
+    # Shared with the deb/rpm packages so all three behave identically:
+    # LD_LIBRARY_PATH points at the bundled native libraries (Qt5, SDL2,
+    # X11, ...) and AI_CAR_RASE_HOME keeps settings/keys/history in the
+    # user's XDG data dir, because /usr/lib is read-only.
+    sed -e "s|@@NAME@@|$pkgname|g" \
+        -e "s|@@VERSION@@|$pkgver-$pkgrel|g" \
+        -e "s|@@LIBDIR@@|/usr/lib/$pkgname|g" \
+        "$startdir/../common/launcher.sh.in" \
+        | install -Dm755 /dev/stdin "$pkgdir/usr/bin/$pkgname"
+
+    # --- desktop entry ---------------------------------------------------
+    sed -e "s|@@NAME@@|$pkgname|g" \
+        "$startdir/../common/ai-car-rase.desktop.in" \
+        | install -Dm644 /dev/stdin \
+            "$pkgdir/usr/share/applications/$pkgname.desktop"
+
+    # --- docs ------------------------------------------------------------
+    install -Dm644 "$startdir/../../README.md" \
+        "$pkgdir/usr/share/doc/$pkgname/README.md"
+    install -Dm644 "$startdir/../../LICENSE" \
+        "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}

@@ -1,0 +1,66 @@
+# Nuitka-compiled RPM for AI Car Race.
+#
+# Generated from ai-car-rase.spec.in by build.sh, which also provides
+# Source0 (the frozen standalone tree), the launcher and the desktop entry.
+# The payload is pre-built: it carries its own Python interpreter, numpy,
+# pygame, PyQt5, PyOpenGL and the Qt5/SDL2/X11 libraries, so no python3-*
+# package is needed on the target machine.
+%global debug_package %{nil}
+%global __strip /bin/true
+%global __os_install_post %{nil}
+%global _build_id_links none
+
+Name:           ai-car-rase
+Version:        @@RPMVERSION@@
+Release:        1%{?dist}
+Summary:        3D two-player racing game driven by vision language models
+License:        MIT
+URL:            https://github.com/phillin-liu/ai-car-rase
+Source0:        %{name}-%{version}-nuitka.tar.gz
+Source1:        ai-car-rase.launcher
+Source2:        ai-car-rase.desktop
+BuildArch:      x86_64
+# The bundle ships every library it can carry, so automatic dependency
+# generation would invent dependencies on bundled .so files.  The real
+# requirements are listed by hand: glibc and the GPU driver stack.
+AutoReqProv:    no
+Requires:       glibc >= @@GLIBC@@
+Requires:       libglvnd-glx
+Requires:       libglvnd-egl
+Requires:       mesa-libgbm
+Requires:       libdrm
+Recommends:     google-noto-sans-cjk-fonts
+Provides:       %{name} = %{version}-%{release}
+
+%description
+Each car is driven by a vision model (OpenAI, Anthropic, Ollama or any
+OpenAI-compatible endpoint): the game renders what the driver "sees" and
+the model answers with throttle / brake / steering.
+
+This is the self-contained Nuitka build.  It carries its own Python
+interpreter, numpy, pygame, PyQt5, PyOpenGL and the Qt5 / SDL2 / X11
+libraries, so no python3-* package is required.  Only glibc and the
+OpenGL driver stack are taken from the system.
+
+%prep
+%setup -q -n %{name}-%{version}
+
+%build
+
+%install
+rm -rf %{buildroot}
+install -d %{buildroot}%{_libdir}/%{name}
+cp -a . %{buildroot}%{_libdir}/%{name}/
+install -Dpm 0755 %{_sourcedir}/ai-car-rase.launcher \
+    %{buildroot}%{_bindir}/%{name}
+install -Dpm 0644 %{_sourcedir}/ai-car-rase.desktop \
+    %{buildroot}%{_datadir}/applications/%{name}.desktop
+
+%files
+%{_libdir}/%{name}/
+%{_bindir}/%{name}
+%{_datadir}/applications/%{name}.desktop
+
+%changelog
+* @@DATE@@ Phillin-liu <phillin.liu@example.com> - @@RPMVERSION@@-1
+- Nuitka self-contained build packaged as RPM.

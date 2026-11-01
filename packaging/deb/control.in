@@ -1,0 +1,20 @@
+Package: @@NAME@@
+Version: @@DEBVERSION@@
+Architecture: amd64
+Maintainer: Phillin-liu <phillin.liu@example.com>
+Installed-Size: @@INSTALLED_SIZE@@
+Section: games
+Priority: optional
+Depends: libc6 (>= @@GLIBC@@), libgl1, libglx0, libegl1, libgbm1, libdrm2
+Recommends: fonts-noto-cjk
+Suggests: ollama
+Homepage: https://github.com/phillin-liu/ai-car-rase
+Description: 3D two-player racing game driven by vision language models
+ Each car is driven by a vision model (OpenAI, Anthropic, Ollama or any
+ OpenAI-compatible endpoint): the game renders what the driver "sees" and
+ the model answers with throttle / brake / steering.
+ .
+ This is the self-contained Nuitka build.  It carries its own Python
+ interpreter, numpy, pygame, PyQt5, PyOpenGL and the Qt5 / SDL2 / X11
+ libraries, so no python3-* package is required.  Only glibc and the
+ OpenGL driver stack are taken from the system.
