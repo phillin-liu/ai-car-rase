@@ -1,0 +1,14 @@
+#!/bin/sh
+# Launcher for ai-car-rase @@VERSION@@ -- self-contained Nuitka build.
+#
+# The frozen tree ships its own Python interpreter, every extension module and
+# every native library it can carry, so this script only has to point the
+# dynamic loader at the bundled libraries.  AI_CAR_RASE_HOME keeps settings /
+# API keys / match history in the user's XDG data dir, because the install
+# prefix is read-only.
+: "${AI_CAR_RASE_HOME:=${XDG_DATA_HOME:-$HOME/.local/share}/ai-car-rase}"
+export AI_CAR_RASE_HOME
+libdir="@@LIBDIR@@"
+LD_LIBRARY_PATH="$libdir${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+export LD_LIBRARY_PATH
+exec "$libdir/ai-car-rase" "$@"

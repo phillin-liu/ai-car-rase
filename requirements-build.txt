@@ -1,0 +1,18 @@
+# Dependencies for the *frozen* (Nuitka) builds -- packaging/nuitka/build.sh,
+# packaging/windows/build.ps1 and the release workflow.
+#
+# Deliberately unpinned, unlike requirements.txt: the frozen build runs on the
+# CI interpreter (Python 3.10-3.13 depending on the platform) and must resolve
+# to wheels that exist there.  numpy 1.24.4 for instance has no wheel for
+# Python 3.12, and the Arch package already builds against current numpy 2.x,
+# so the bundled application is tested against current releases anyway.
+#
+# Install with:  pip install -r requirements-build.txt
+numpy>=1.26
+pygame>=2.5
+PyOpenGL>=3.1.6
+PyQt5>=5.15.9
+Pillow>=10.0
+openai>=1.30
+anthropic>=0.40
+requests>=2.31.0

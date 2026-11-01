@@ -1,0 +1,44 @@
+# Tooling configuration for the Python sources.
+#
+# The project is not distributed as a Python package (it is an application),
+# so this file intentionally contains no [project] or [build-system] table.
+# It only keeps lint/format behaviour identical on developer machines and in
+# GitHub Actions.
+
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+
+# Generated / downloaded during local builds; never lint these.
+extend-exclude = [
+    ".git",
+    ".venv",
+    "build",
+    "dist",
+    "runtime",
+    "projects",
+    "packaging/arch/pkg",
+    "packaging/arch/src",
+]
+
+[tool.ruff.lint]
+# E4/E7/E9 + W are the pycodestyle syntax/whitespace rules, F is pyflakes and
+# I checks import sorting.  E501 is deliberately disabled: this code base uses
+# long Chinese comments and table-like literals where wrapping hurts
+# readability.
+select = ["E4", "E7", "E9", "F", "I", "W"]
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+# OpenGL constants/functions are exported by a wildcard import on purpose.
+"car_game/render/gl.py" = ["F403", "F405"]
+"car_game/render/renderer.py" = ["F403", "F405"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["car_game"]
+split-on-trailing-comma = false
+combine-as-imports = true
+
+[tool.ruff.format]
+quote-style = "preserve"
+line-ending = "lf"

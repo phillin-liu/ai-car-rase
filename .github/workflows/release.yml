@@ -1,0 +1,371 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  PYTHON_VERSION: "3.12"
+  RUFF_VERSION: "0.17.3"
+
+jobs:
+  meta:
+    name: Validate release tag
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      pkgver: ${{ steps.meta.outputs.pkgver }}
+    steps:
+      - name: Read version from tag
+        id: meta
+        env:
+          TAG: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${TAG#v}"
+          if [ -z "$version" ] || [ "$version" = "$TAG" ]; then
+            echo "::error::release tag must look like v1.2.3 (got '$TAG')"
+            exit 1
+          fi
+          if [[ ! "$version" =~ ^[0-9A-Za-z][0-9A-Za-z._+-]*$ ]]; then
+            echo "::error::release version contains unsupported characters: '$version'"
+            exit 1
+          fi
+          # Arch pkgver may not contain hyphens.
+          pkgver="${version//-/_}"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "pkgver=$pkgver" >> "$GITHUB_OUTPUT"
+          echo "Building release: tag=$TAG version=$version pkgver=$pkgver"
+
+  build:
+    name: Source archives + Rust validator
+    needs: meta
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install ruff
+        run: python -m pip install --disable-pip-version-check "ruff==${RUFF_VERSION}"
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec  # stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Validate Python sources
+        run: |
+          git ls-files -z '*.py' | xargs -0 python -m compileall -q -f
+          ruff check .
+
+      - name: Validate packaging metadata
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends shellcheck
+          shellcheck -x \
+            packaging/common.sh \
+            packaging/nuitka/build.sh \
+            packaging/arch/build.sh \
+            packaging/deb/build.sh \
+            packaging/rpm/build.sh \
+            .github/scripts/make-source-archive.sh \
+            .github/scripts/make-stub-dist.sh
+
+      - name: Build source archives
+        env:
+          VERSION: ${{ needs.meta.outputs.version }}
+          PKGVER: ${{ needs.meta.outputs.pkgver }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          # Keep the packaging metadata in the release source archive in sync
+          # with the tag (the checkout itself is not modified).
+          sed -i "s/^pkgver=.*/pkgver=${PKGVER}/" packaging/arch/PKGBUILD
+          .github/scripts/make-source-archive.sh \
+            "$VERSION" \
+            "dist/ai-car-rase-${VERSION}.tar.gz" \
+            "dist/ai-car-rase-${VERSION}.zip"
+
+      - name: Build Rust anti-cheat validator
+        env:
+          VERSION: ${{ needs.meta.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo fmt --manifest-path anticheat/Cargo.toml --all -- --check
+          cargo clippy --manifest-path anticheat/Cargo.toml --all-targets --locked -- -D warnings
+          cargo build --manifest-path anticheat/Cargo.toml --release --locked
+          cp anticheat/target/release/ac-validate \
+            "dist/ac-validate-${VERSION}-x86_64-unknown-linux-gnu"
+
+      - name: Upload source artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+        with:
+          name: release-source
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 7
+
+  arch_nuitka:
+    name: Arch package (.pkg.tar.zst)
+    needs: meta
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    # Nuitka freezes the whole Python/Qt stack, so this takes considerably
+    # longer than the other jobs.  This package is a required release
+    # artifact: a failure here fails the whole release instead of silently
+    # shipping a release without the self-contained bundle.
+    timeout-minutes: 180
+    steps:
+      # Install git before checkout; the rest of the toolchain is needed for
+      # the frozen build and can be installed at the same time.
+      - name: Install build dependencies
+        run: |
+          pacman -Syu --noconfirm --needed \
+            git python python-pip python-setuptools \
+            python-numpy python-pygame python-opengl python-pyqt5 \
+            python-pillow python-requests python-openai python-anthropic \
+            patchelf zstd rust
+
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+
+      - name: Build frozen bundle and package
+        env:
+          PKGVER: ${{ needs.meta.outputs.pkgver }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          useradd -m builder
+          chown -R builder:builder "$GITHUB_WORKSPACE"
+          cd "$GITHUB_WORKSPACE"
+
+          # Compiles the tree (packaging/nuitka/build.sh), embeds the Rust
+          # validator, bundles the native libraries, runs makepkg and drops
+          # the package into dist/.
+          runuser -u builder -- bash -c \
+            "cd '$GITHUB_WORKSPACE' && PKGVER='$PKGVER' ./packaging/arch/build.sh"
+
+          ls -lh dist
+
+      - name: Upload Arch package
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+        with:
+          name: release-arch
+          path: dist/*.pkg.tar.zst
+          if-no-files-found: error
+          retention-days: 7
+
+  deb:
+    name: Debian/Ubuntu package (.deb)
+    needs: meta
+    # 22.04 keeps the glibc requirement low (2.35): the frozen tree is linked
+    # against the build host, so an older base also runs on Debian 12 / 24.04.
+    runs-on: ubuntu-22.04
+    timeout-minutes: 180
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential patchelf zstd python3-venv
+
+      - name: Install Python dependencies
+        run: |
+          python3 -m venv .venv
+          .venv/bin/python -m pip install --upgrade pip
+          .venv/bin/python -m pip install \
+            -r requirements-build.txt nuitka ordered-set zstandard
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec  # stable
+
+      - name: Build .deb
+        env:
+          VERSION: ${{ needs.meta.outputs.version }}
+          PYTHON: ${{ github.workspace }}/.venv/bin/python
+        run: ./packaging/deb/build.sh
+
+      - name: Upload deb package
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+        with:
+          name: release-deb
+          path: dist/*.deb
+          if-no-files-found: error
+          retention-days: 7
+
+  rpm:
+    name: Fedora/RHEL package (.rpm)
+    needs: meta
+    runs-on: ubuntu-latest
+    container: fedora:40
+    timeout-minutes: 180
+    steps:
+      - name: Install build dependencies
+        run: |
+          dnf -y --setopt=install_weak_deps=False install \
+            git tar gzip python3 python3-pip python3-devel \
+            gcc gcc-c++ patchelf zstd cargo rpm-build
+
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+
+      - name: Install Python dependencies
+        run: |
+          python3 -m pip install --break-system-packages --upgrade pip
+          python3 -m pip install --break-system-packages \
+            -r requirements-build.txt nuitka ordered-set zstandard
+
+      - name: Build .rpm
+        env:
+          VERSION: ${{ needs.meta.outputs.version }}
+        run: ./packaging/rpm/build.sh
+
+      - name: Upload rpm package
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+        with:
+          name: release-rpm
+          path: dist/*.rpm
+          if-no-files-found: error
+          retention-days: 7
+
+  windows_exe:
+    name: Windows build (portable .exe)
+    needs: meta
+    runs-on: windows-latest
+    timeout-minutes: 180
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: requirements-build.txt
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-build.txt nuitka ordered-set zstandard
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec  # stable
+
+      - name: Build Windows executable
+        env:
+          VERSION: ${{ needs.meta.outputs.version }}
+        shell: pwsh
+        # Portable archive (zip) plus a single self-extracting .exe, both from
+        # the same Nuitka compilation cache.
+        run: ./packaging/windows/build.ps1 -Version $env:VERSION -Onefile
+
+      - name: Upload Windows build
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+        with:
+          name: release-windows
+          path: |
+            dist/*-windows-x86_64.zip
+            dist/*-windows-x86_64.exe
+          if-no-files-found: error
+          retention-days: 7
+
+  release:
+    name: Publish GitHub Release
+    needs: [meta, build, arch_nuitka, deb, rpm, windows_exe]
+    # Every artifact group is mandatory: a release without one of the
+    # self-contained packages must never be published.
+    if: |
+      always() &&
+      needs.build.result == 'success' &&
+      needs.arch_nuitka.result == 'success' &&
+      needs.deb.result == 'success' &&
+      needs.rpm.result == 'success' &&
+      needs.windows_exe.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - name: Download all packages
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Verify required artifacts
+        env:
+          VERSION: ${{ needs.meta.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd dist
+          missing=0
+          required=(
+            "ai-car-rase-${VERSION}.tar.gz"
+            "ai-car-rase-${VERSION}.zip"
+            "ac-validate-*-x86_64-unknown-linux-gnu"
+            "ai-car-rase-*-x86_64.pkg.tar.zst"
+            "ai-car-rase_*_amd64.deb"
+            "ai-car-rase-*.x86_64.rpm"
+            "ai-car-rase-*-windows-x86_64.zip"
+            "ai-car-rase-*-windows-x86_64.exe"
+          )
+          for pattern in "${required[@]}"; do
+            if ! compgen -G "$pattern" >/dev/null; then
+              echo "::error::missing required release artifact: $pattern"
+              missing=1
+            fi
+          done
+          [ "$missing" -eq 0 ] || exit 1
+          ls -lh
+
+      - name: Generate checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd dist
+          rm -f SHA256SUMS
+          files=(*)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "::error::no release artifacts were downloaded"
+            exit 1
+          fi
+          sha256sum "${files[@]}" > SHA256SUMS
+          ls -lh
+
+      - name: Create or update GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+          VERSION: ${{ needs.meta.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/* --clobber
+          else
+            args=("$TAG" dist/* --title "AI Car Race $VERSION" --generate-notes --verify-tag)
+            if [[ "$VERSION" == *-* ]]; then
+              args+=(--prerelease)
+            fi
+            gh release create "${args[@]}"
+          fi

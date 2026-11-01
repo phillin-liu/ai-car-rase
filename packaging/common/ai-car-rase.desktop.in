@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=AI Car Race
+Name[zh_CN]=AI 赛车
+GenericName=AI Racing Game
+Comment=Dual AI vision-model racing (Nuitka bundle)
+Comment[zh_CN]=双方各由一个视觉大模型驾驶的 3D 双人赛车（Nuitka 免依赖版）
+Exec=@@NAME@@
+Icon=applications-games
+Terminal=false
+Categories=Game;Simulation;
+Keywords=game;racing;ai;opengl;
+StartupNotify=true
