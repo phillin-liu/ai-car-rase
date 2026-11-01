@@ -16,4 +16,4 @@ render      : OpenGL renderer
 runner      : multi-match session runner (windowed / headless)
 """
 
-__version__ = "1.0.0"
+__version__ = "0.1.0"
